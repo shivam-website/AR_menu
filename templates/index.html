@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AR Menu - Namaste Kitchen</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Menu View -->
+        <div class="menu-view active">
+            <div class="header">
+                <h1>Namaste Kitchen</h1>
+                <p>Scan & Preview in AR</p>
+            </div>
+            <div class="menu-grid" id="menuGrid">
+                <div class="loading">Loading menu...</div>
+            </div>
+        </div>
+
+        <!-- Dish Detail View -->
+        <div class="dish-detail">
+            <div class="detail-back" id="detailBack">←</div>
+            <img class="detail-image" id="detailImage" src="" alt="">
+            <h2 class="detail-name" id="detailName"></h2>
+            <p class="detail-description" id="detailDescription"></p>
+            <div class="detail-price" id="detailPrice"></div>
+            
+            <label class="quantity-label">Quantity</label>
+            <div class="quantity-display" id="quantityDisplay">1</div>
+            <input type="range" class="quantity-slider" id="quantitySlider" min="1" max="10" value="1">
+            
+            <button class="ar-button" id="viewARButton">View in AR</button>
+        </div>
+    </div>
+
+    <!-- AR View -->
+    <div class="ar-view" id="arView">
+        <canvas class="ar-canvas" id="arCanvas"></canvas>
+
+        <!-- Fallback camera feed (for non-WebXR browsers) -->
+        <video id="arCameraFeed" class="ar-camera-feed" autoplay playsinline muted></video>
+
+        <div class="ar-overlay" id="arOverlay">
+            <div class="ar-info">
+                <div id="arDishName">-</div>
+                <div id="arQuantity">-</div>
+            </div>
+            <div class="ar-instructions" id="arInstructions">Point camera at a flat surface</div>
+            <button class="ar-place-btn" id="arPlaceBtn" style="display:none;">Tap to Place</button>
+            <button class="ar-close" id="closeARButton">✕</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

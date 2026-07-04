@@ -46,7 +46,7 @@ MENU = {
             "name": "Panipuri",
             "description": "Five crispy hollow shells filled with spiced potato and chickpeas, served with tangy tamarind water.",
             "price": 80,
-            "image": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=400&q=80",
+            "image": "https://images.unsplash.com/photo-1586357507341-3fbe59f2a5d9?q=80&w=880&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
             "color": "#C5644C",
             "model": "/static/models/panipuri.glb",
             "category": "Street Food",

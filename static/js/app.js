@@ -1,6 +1,14 @@
+// ═══════════════════════════════════════
+// NAMASTE KITCHEN - AR MENU
+// Premium Edition
+// ═══════════════════════════════════════
+
 const restaurantId = new URLSearchParams(window.location.search).get('restaurant') || '123';
 
+// State
 let currentDish = null;
+let currentQty = 1;
+let cart = [];
 let scene, camera, renderer;
 let xrSession = null;
 let hitTestSource = null;
@@ -9,13 +17,57 @@ let placed = false;
 let model3D = null;
 let reticle = null;
 let cameraStream = null;
+let wasSurfaceFound = false;
+
+// ═══════════════════════════════════════
+// SPLASH & INIT
+// ═══════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        document.getElementById('splash').classList.add('hide');
+        document.getElementById('app').classList.add('visible');
+    }, 2200);
+
+    initApp();
+});
 
 async function initApp() {
     await loadMenu();
-    setupEventListeners();
+    setupNav();
+    setupDetail();
+    setupCart();
+    setupAR();
+    setupExplore();
 }
 
+// ═══════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════
+function setupNav() {
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+        nav.classList.toggle('scrolled', window.scrollY > 60);
+    });
+
+    document.getElementById('cartToggle').addEventListener('click', openCart);
+}
+
+// ═══════════════════════════════════════
+// EXPLORE BUTTON
+// ═══════════════════════════════════════
+function setupExplore() {
+    document.getElementById('exploreBtn').addEventListener('click', () => {
+        document.getElementById('menuSection').scrollIntoView({ behavior: 'smooth' });
+    });
+}
+
+// ═══════════════════════════════════════
+// MENU
+// ═══════════════════════════════════════
 async function loadMenu() {
+    const grid = document.getElementById('menuGrid');
+    grid.innerHTML = Array(3).fill('<div class="dish-card"><div class="skeleton" style="width:80px;height:80px;flex-shrink:0"></div><div class="dish-info" style="flex:1"><div class="skeleton" style="height:16px;width:60%;margin-bottom:8px"></div><div class="skeleton" style="height:12px;width:80%;margin-bottom:8px"></div><div class="skeleton" style="height:14px;width:30%"></div></div></div>').join('');
+
     try {
         const response = await fetch(`/api/menu/${restaurantId}`);
         if (!response.ok) throw new Error('Failed to fetch menu');
@@ -23,82 +75,244 @@ async function loadMenu() {
         renderMenu(dishes);
     } catch (error) {
         console.error('Error loading menu:', error);
-        document.getElementById('menuGrid').innerHTML = '<p style="text-align: center; padding: 32px;">Failed to load menu</p>';
+        grid.innerHTML = '<p style="text-align:center;padding:3rem;color:var(--cream-dim)">Failed to load menu</p>';
     }
 }
 
 function renderMenu(dishes) {
-    const menuGrid = document.getElementById('menuGrid');
-    menuGrid.innerHTML = '';
+    const grid = document.getElementById('menuGrid');
+    grid.innerHTML = '';
 
-    dishes.forEach(dish => {
+    dishes.forEach((dish, i) => {
         const card = document.createElement('div');
         card.className = 'dish-card';
         card.innerHTML = `
-            <img src="${dish.image}" alt="${dish.name}" class="dish-image" onerror="this.src='https://via.placeholder.com/80x80?text=${dish.name}'">
+            <img class="dish-thumb" src="${dish.image}" alt="${dish.name}"
+                 onerror="this.style.background='var(--black-card)';this.alt='${dish.name}'">
             <div class="dish-info">
                 <div class="dish-name">${dish.name}</div>
-                <div class="dish-description">${dish.description}</div>
-                <div class="dish-price">रु ${dish.price}</div>
+                <div class="dish-desc">${dish.description}</div>
+                <div class="dish-bottom">
+                    <div class="dish-price">रु ${dish.price}</div>
+                    <div class="dish-ar-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 1h6v6H1z"/><path d="M17 1h6v6h-6z"/><path d="M1 17h6v6H1z"/>
+                        </svg>
+                        AR
+                    </div>
+                </div>
             </div>
         `;
-        card.addEventListener('click', () => selectDish(dish));
-        menuGrid.appendChild(card);
+        card.addEventListener('click', () => openDetail(dish));
+        grid.appendChild(card);
+
+        setTimeout(() => card.classList.add('visible'), 100 + i * 120);
     });
 }
 
-function selectDish(dish) {
+// ═══════════════════════════════════════
+// DISH DETAIL
+// ═══════════════════════════════════════
+function setupDetail() {
+    document.getElementById('detailClose').addEventListener('click', closeDetail);
+    document.getElementById('detailBackdrop').addEventListener('click', closeDetail);
+
+    document.getElementById('qtyMinus').addEventListener('click', () => {
+        if (currentQty > 1) {
+            currentQty--;
+            document.getElementById('qtyValue').textContent = currentQty;
+            updateDetailPrice();
+        }
+    });
+
+    document.getElementById('qtyPlus').addEventListener('click', () => {
+        if (currentQty < 20) {
+            currentQty++;
+            document.getElementById('qtyValue').textContent = currentQty;
+            updateDetailPrice();
+        }
+    });
+
+    document.getElementById('viewARBtn').addEventListener('click', () => {
+        closeDetail();
+        setTimeout(() => initARView(), 400);
+    });
+
+    document.getElementById('addCartBtn').addEventListener('click', () => {
+        addToCart(currentDish, currentQty);
+        closeDetail();
+    });
+}
+
+function openDetail(dish) {
     currentDish = dish;
-    
-    document.querySelector('.menu-view').classList.remove('active');
-    document.querySelector('.dish-detail').classList.add('active');
-    
+    currentQty = 1;
+
     document.getElementById('detailImage').src = dish.image;
     document.getElementById('detailImage').onerror = function() {
-        this.src = 'https://via.placeholder.com/300x300?text=' + dish.name;
+        this.style.background = 'var(--black-card)';
     };
+    document.getElementById('detailCategory').textContent = 'Signature Dish';
     document.getElementById('detailName').textContent = dish.name;
-    document.getElementById('detailDescription').textContent = dish.description;
+    document.getElementById('detailDesc').textContent = dish.description;
     document.getElementById('detailPrice').textContent = `रु ${dish.price}`;
-    document.getElementById('quantitySlider').value = 1;
-    document.getElementById('quantityDisplay').textContent = '1';
+    document.getElementById('qtyValue').textContent = '1';
+    document.getElementById('btnPrice').textContent = `रु ${dish.price}`;
+
+    document.getElementById('detailView').classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
-function setupEventListeners() {
-    document.getElementById('quantitySlider').addEventListener('input', (e) => {
-        document.getElementById('quantityDisplay').textContent = e.target.value;
+function closeDetail() {
+    document.getElementById('detailView').classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function updateDetailPrice() {
+    if (currentDish) {
+        document.getElementById('btnPrice').textContent = `रु ${currentDish.price * currentQty}`;
+    }
+}
+
+// ═══════════════════════════════════════
+// CART
+// ═══════════════════════════════════════
+function setupCart() {
+    document.getElementById('cartClose').addEventListener('click', closeCart);
+    document.getElementById('cartBackdrop').addEventListener('click', closeCart);
+    document.getElementById('checkoutBtn').addEventListener('click', checkout);
+    document.getElementById('confirmOk').addEventListener('click', () => {
+        document.getElementById('orderConfirm').classList.remove('active');
+    });
+}
+
+function addToCart(dish, qty) {
+    const existing = cart.find(c => c.id === dish.id);
+    if (existing) {
+        existing.qty += qty;
+    } else {
+        cart.push({ ...dish, qty });
+    }
+    updateCartUI();
+    showToast(`Added <span class="toast-gold">${dish.name}</span> × ${qty} to order`);
+}
+
+function removeFromCart(dishId) {
+    cart = cart.filter(c => c.id !== dishId);
+    updateCartUI();
+}
+
+function updateCartUI() {
+    const count = cart.reduce((s, c) => s + c.qty, 0);
+    const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
+
+    const countEl = document.getElementById('cartCount');
+    countEl.textContent = count;
+    countEl.classList.toggle('visible', count > 0);
+
+    const itemsEl = document.getElementById('cartItems');
+    const emptyEl = document.getElementById('cartEmpty');
+    const footerEl = document.getElementById('cartFooter');
+
+    if (cart.length === 0) {
+        emptyEl.style.display = '';
+        footerEl.style.display = 'none';
+        itemsEl.innerHTML = '';
+        itemsEl.appendChild(emptyEl);
+        return;
+    }
+
+    emptyEl.style.display = 'none';
+    footerEl.style.display = '';
+
+    itemsEl.innerHTML = cart.map(item => `
+        <div class="cart-item">
+            <img class="cart-item-img" src="${item.image}" alt="${item.name}"
+                 onerror="this.style.background='var(--black-card)'">
+            <div class="cart-item-info">
+                <div class="cart-item-name">${item.name}</div>
+                <div class="cart-item-meta">Qty: ${item.qty} × रु ${item.price}</div>
+            </div>
+            <div class="cart-item-price">रु ${item.price * item.qty}</div>
+            <button class="cart-item-remove" onclick="removeFromCart(${item.id})">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+    `).join('');
+
+    document.getElementById('totalAmount').textContent = `रु ${total}`;
+}
+
+function openCart() {
+    updateCartUI();
+    document.getElementById('cartDrawer').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeCart() {
+    document.getElementById('cartDrawer').classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+async function checkout() {
+    if (cart.length === 0) return;
+
+    try {
+        await fetch('/api/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ restaurant_id: parseInt(restaurantId), items: cart })
+        });
+    } catch (e) { /* proceed anyway for demo */ }
+
+    cart = [];
+    updateCartUI();
+    closeCart();
+    document.getElementById('orderConfirm').classList.add('active');
+}
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+function showToast(html) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = html;
+    document.body.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => toast.classList.add('show'));
     });
 
-    document.getElementById('detailBack').addEventListener('click', () => {
-        document.querySelector('.dish-detail').classList.remove('active');
-        document.querySelector('.menu-view').classList.add('active');
-    });
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+    }, 2500);
+}
 
-    document.getElementById('viewARButton').addEventListener('click', () => {
-        initARView();
-    });
-
-    document.getElementById('closeARButton').addEventListener('click', () => {
-        closeARView();
-    });
-
-    document.getElementById('arPlaceBtn').addEventListener('click', () => {
-        placeModel();
-    });
+// ═══════════════════════════════════════
+// AR VIEW
+// ═══════════════════════════════════════
+function setupAR() {
+    document.getElementById('closeARButton').addEventListener('click', closeARView);
+    document.getElementById('arPlaceBtn').addEventListener('click', placeModel);
 }
 
 async function initARView() {
     if (!currentDish) return;
 
-    document.querySelector('.dish-detail').classList.remove('active');
     document.getElementById('arView').classList.add('active');
     document.getElementById('arPlaceBtn').style.display = 'none';
-    document.getElementById('arInstructions').textContent = 'Starting AR...';
+    document.getElementById('arInstructions').textContent = 'Initializing AR...';
     placed = false;
 
-    const quantity = parseInt(document.getElementById('quantitySlider').value);
     document.getElementById('arDishName').textContent = currentDish.name;
-    document.getElementById('arQuantity').textContent = `Qty: ${quantity}`;
+    document.getElementById('arQuantity').textContent = `Qty: ${currentQty}`;
 
     const canvas = document.getElementById('arCanvas');
 
@@ -106,7 +320,7 @@ async function initARView() {
         try {
             const supported = await navigator.xr.isSessionSupported('immersive-ar');
             if (supported) {
-                await startWebXRSession(canvas, quantity);
+                await startWebXRSession(canvas);
                 return;
             }
         } catch (e) {
@@ -114,45 +328,38 @@ async function initARView() {
         }
     }
 
-    await startCameraFallback(canvas, quantity);
+    await startCameraFallback(canvas);
 }
 
-async function startWebXRSession(canvas, quantity) {
+async function startWebXRSession(canvas) {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(1);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
     renderer.xr.enabled = true;
+    if (renderer.xr.setFoveation) renderer.xr.setFoveation(0);
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambient);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dir = new THREE.DirectionalLight(0xffffff, 0.8);
     dir.position.set(0, 5, 3);
     scene.add(dir);
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
-    scene.add(hemi);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.5));
 
     reticle = new THREE.Mesh(
-        new THREE.RingGeometry(0.08, 0.1, 32).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.8 })
+        new THREE.RingGeometry(0.06, 0.08, 16).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: 0xc9a96e, transparent: true, opacity: 0.9 })
     );
     reticle.visible = false;
     scene.add(reticle);
 
-    model3D = await loadGLTFModel(currentDish.model, quantity);
-    if (model3D) {
-        model3D.visible = false;
-        scene.add(model3D);
-    }
-
     xrSession = await navigator.xr.requestSession('immersive-ar', {
         requiredFeatures: ['hit-test'],
-        optionalFeatures: ['dom-overlay', 'light-estimation'],
+        optionalFeatures: ['dom-overlay'],
         domOverlay: { root: document.getElementById('arOverlay') }
     });
 
@@ -160,18 +367,26 @@ async function startWebXRSession(canvas, quantity) {
     await renderer.xr.setSession(xrSession);
 
     document.getElementById('arInstructions').textContent = 'Move phone to detect surface';
-    document.getElementById('arPlaceBtn').style.display = 'none';
 
     localRefSpace = await xrSession.requestReferenceSpace('local');
     const viewerSpace = await xrSession.requestReferenceSpace('viewer');
-
     hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
 
-    xrSession.addEventListener('select', onSelect);
-    xrSession.addEventListener('end', onSessionEnd);
+    xrSession.addEventListener('select', () => placeModel());
+    xrSession.addEventListener('end', () => { hitTestSource = null; xrSession = null; });
+
+    loadGLTFModel(currentDish.model).then(model => {
+        model3D = model;
+        if (model3D) {
+            model3D.visible = false;
+            scene.add(model3D);
+        }
+    });
 
     renderer.setAnimationLoop(onXRFrame);
 }
+
+let lastUIUpdate = 0;
 
 function onXRFrame(timestamp, frame) {
     if (!frame || !hitTestSource || placed) {
@@ -179,33 +394,29 @@ function onXRFrame(timestamp, frame) {
         return;
     }
 
-    const hitTestResults = frame.getHitTestResults(hitTestSource);
-    if (hitTestResults.length > 0) {
-        const hit = hitTestResults[0];
-        const pose = hit.getPose(localRefSpace);
+    const results = frame.getHitTestResults(hitTestSource);
+    const found = results.length > 0;
+
+    if (found) {
+        const pose = results[0].getPose(localRefSpace);
         if (pose) {
             reticle.visible = true;
             reticle.matrix.fromArray(pose.transform.matrix);
             reticle.matrix.decompose(reticle.position, reticle.quaternion, reticle.scale);
-
-            if (!placed) {
-                document.getElementById('arInstructions').textContent = 'Tap screen or press button to place';
-                document.getElementById('arPlaceBtn').style.display = 'block';
-            }
+            reticle.material.opacity = 0.6 + 0.3 * Math.sin(timestamp * 0.004);
         }
     } else {
         reticle.visible = false;
-        if (!placed) {
-            document.getElementById('arInstructions').textContent = 'Move phone to detect surface';
-            document.getElementById('arPlaceBtn').style.display = 'none';
-        }
+    }
+
+    if (found !== wasSurfaceFound && !placed) {
+        wasSurfaceFound = found;
+        document.getElementById('arInstructions').textContent = found
+            ? 'Tap to place on surface' : 'Move phone to detect surface';
+        document.getElementById('arPlaceBtn').style.display = found ? 'block' : 'none';
     }
 
     renderer.render(scene, camera);
-}
-
-function onSelect() {
-    placeModel();
 }
 
 function placeModel() {
@@ -217,7 +428,7 @@ function placeModel() {
     placed = true;
     reticle.visible = false;
 
-    document.getElementById('arInstructions').textContent = 'Placed! Drag to reposition';
+    document.getElementById('arInstructions').textContent = 'Drag to reposition';
     document.getElementById('arPlaceBtn').style.display = 'none';
 
     enableTouchDrag(model3D);
@@ -226,17 +437,12 @@ function placeModel() {
 function enableTouchDrag(obj) {
     const canvas = document.getElementById('arCanvas');
     let dragging = false;
-    let prevX = 0, prevY = 0;
-
     const raycaster = new THREE.Raycaster();
     const plane = new THREE.Plane();
     const intersection = new THREE.Vector3();
 
     canvas.addEventListener('pointerdown', (e) => {
         dragging = true;
-        prevX = e.clientX;
-        prevY = e.clientY;
-
         const mouse = new THREE.Vector2(
             (e.clientX / window.innerWidth) * 2 - 1,
             -(e.clientY / window.innerHeight) * 2 + 1
@@ -263,19 +469,12 @@ function enableTouchDrag(obj) {
         }
     });
 
-    canvas.addEventListener('pointerup', () => { dragging = false; });
-    canvas.addEventListener('pointercancel', () => { dragging = false; });
+    canvas.addEventListener('pointerup', () => dragging = false);
+    canvas.addEventListener('pointercancel', () => dragging = false);
 }
 
-function onSessionEnd() {
-    hitTestSource = null;
-    xrSession = null;
-}
-
-async function startCameraFallback(canvas, quantity) {
-    const instructions = document.getElementById('arInstructions');
-    const placeBtn = document.getElementById('arPlaceBtn');
-    instructions.textContent = 'Camera mode - no AR surface detection';
+async function startCameraFallback(canvas) {
+    document.getElementById('arInstructions').textContent = 'Camera mode';
 
     try {
         cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -286,7 +485,7 @@ async function startCameraFallback(canvas, quantity) {
         video.classList.add('active');
     } catch (e) {
         console.warn('Camera access denied:', e);
-        instructions.textContent = 'Camera not available';
+        document.getElementById('arInstructions').textContent = 'Camera not available';
     }
 
     scene = new THREE.Scene();
@@ -295,67 +494,63 @@ async function startCameraFallback(canvas, quantity) {
     camera.lookAt(0, 0.8, 0);
 
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(1);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
     renderer.setClearColor(0x000000, 0);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(ambient);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const dir = new THREE.DirectionalLight(0xffffff, 0.8);
     dir.position.set(2, 5, 3);
     scene.add(dir);
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
-    scene.add(hemi);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.5));
 
-    const groundGeo = new THREE.PlaneGeometry(10, 10);
-    const groundMat = new THREE.ShadowMaterial({ opacity: 0.2 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
+    const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(10, 10),
+        new THREE.ShadowMaterial({ opacity: 0.15 })
+    );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    model3D = await loadGLTFModel(currentDish.model, quantity);
-    if (model3D) {
-        model3D.position.set(0, 0.8, 0);
-        model3D.castShadow = true;
-        scene.add(model3D);
-    }
-
-    const tableGeo = new THREE.CylinderGeometry(0.6, 0.6, 0.03, 32);
-    const tableMat = new THREE.MeshPhongMaterial({ color: 0x8B6914 });
-    const table = new THREE.Mesh(tableGeo, tableMat);
+    const table = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.6, 0.6, 0.03, 32),
+        new THREE.MeshPhongMaterial({ color: 0x2a1f14, shininess: 60 })
+    );
     table.position.set(0, 0.78, 0);
     table.receiveShadow = true;
     scene.add(table);
 
+    model3D = await loadGLTFModel(currentDish.model);
+    if (model3D) {
+        model3D.position.set(0, 0.82, 0);
+        model3D.castShadow = true;
+        scene.add(model3D);
+    }
+
     document.getElementById('arPlaceBtn').style.display = 'none';
-    instructions.textContent = 'Drag to move, pinch to scale';
+    document.getElementById('arInstructions').textContent = 'Drag to rotate, pinch to zoom';
 
     const controls = new THREE.OrbitControls(camera, canvas);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.target.set(0, 0.8, 0);
+    controls.dampingFactor = 0.06;
+    controls.target.set(0, 0.85, 0);
     controls.maxPolarAngle = Math.PI / 2.1;
-    controls.minDistance = 1;
-    controls.maxDistance = 8;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 6;
     controls.update();
 
-    function animate() {
-        renderer.setAnimationLoop(null);
+    (function animate() {
         requestAnimationFrame(animate);
         controls.update();
-        if (model3D) {
-            model3D.rotation.y += 0.003;
-        }
+        if (model3D) model3D.rotation.y += 0.004;
         renderer.render(scene, camera);
-    }
-    animate();
+    })();
 }
 
-async function loadGLTFModel(modelPath, quantity) {
+async function loadGLTFModel(modelPath) {
     if (!modelPath) return null;
 
     return new Promise((resolve) => {
@@ -368,8 +563,7 @@ async function loadGLTFModel(modelPath, quantity) {
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const targetSize = 0.25;
-                const scale = targetSize / maxDim;
+                const scale = 0.25 / maxDim;
                 model.scale.setScalar(scale);
                 model.position.sub(center.multiplyScalar(scale));
 
@@ -377,63 +571,19 @@ async function loadGLTFModel(modelPath, quantity) {
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
-                        if (child.material) {
-                            child.material.envMapIntensity = 1.0;
-                        }
                     }
                 });
 
                 resolve(model);
             },
             undefined,
-            (error) => {
-                console.error('Error loading model:', error);
-                resolve(createFallbackModel(quantity));
-            }
+            () => resolve(null)
         );
     });
 }
 
-function createFallbackModel(quantity) {
-    const group = new THREE.Group();
-    const geo = new THREE.SphereGeometry(0.15, 32, 32);
-    const mat = new THREE.MeshPhongMaterial({
-        color: new THREE.Color(currentDish.color || '#D4A574'),
-        shininess: 80
-    });
-    const sphere = new THREE.Mesh(geo, mat);
-    sphere.position.y = 0.15;
-    group.add(sphere);
-
-    const canvas2D = document.createElement('canvas');
-    const ctx = canvas2D.getContext('2d');
-    canvas2D.width = 256;
-    canvas2D.height = 128;
-    ctx.clearRect(0, 0, 256, 128);
-    ctx.fillStyle = 'white';
-    ctx.font = 'bold 40px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur = 6;
-    ctx.fillText(currentDish.name, 128, 40);
-    ctx.font = '28px Arial';
-    ctx.fillText(`× ${quantity}`, 128, 90);
-
-    const texture = new THREE.CanvasTexture(canvas2D);
-    const labelGeo = new THREE.PlaneGeometry(0.4, 0.2);
-    const labelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-    const label = new THREE.Mesh(labelGeo, labelMat);
-    label.position.set(0, 0.35, 0.16);
-    group.add(label);
-
-    return group;
-}
-
 function closeARView() {
-    if (xrSession) {
-        xrSession.end().catch(() => {});
-    }
+    if (xrSession) xrSession.end().catch(() => {});
     if (renderer) {
         renderer.setAnimationLoop(null);
         renderer.dispose();
@@ -456,7 +606,4 @@ function closeARView() {
     placed = false;
 
     document.getElementById('arView').classList.remove('active');
-    document.querySelector('.dish-detail').classList.add('active');
 }
-
-initApp();

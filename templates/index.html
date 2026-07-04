@@ -2,57 +2,202 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR Menu - Namaste Kitchen</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Namaste Kitchen | AR Menu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <!-- Menu View -->
-        <div class="menu-view active">
-            <div class="header">
-                <h1>Namaste Kitchen</h1>
-                <p>Scan & Preview in AR</p>
+
+    <!-- Splash Screen -->
+    <div class="splash" id="splash">
+        <div class="splash-inner">
+            <div class="splash-line"></div>
+            <h1 class="splash-title">Namaste Kitchen</h1>
+            <p class="splash-sub">An immersive dining experience</p>
+            <div class="splash-line"></div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div class="app" id="app">
+
+        <!-- Navigation -->
+        <nav class="nav" id="nav">
+            <div class="nav-inner">
+                <div class="nav-brand">Namaste Kitchen</div>
+                <button class="nav-cart" id="cartToggle">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <path d="M16 10a4 4 0 01-8 0"/>
+                    </svg>
+                    <span class="cart-count" id="cartCount">0</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Hero -->
+        <section class="hero" id="hero">
+            <div class="hero-bg"></div>
+            <div class="hero-content">
+                <span class="hero-tag">Est. 2024</span>
+                <h1 class="hero-title">Namaste<br>Kitchen</h1>
+                <p class="hero-desc">Experience our signature dishes in augmented reality. See your meal before you order.</p>
+                <button class="hero-cta" id="exploreBtn">
+                    <span>Explore Menu</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="hero-scroll">
+                <span>Scroll to discover</span>
+                <div class="scroll-line"></div>
+            </div>
+        </section>
+
+        <!-- Menu Section -->
+        <section class="menu-section" id="menuSection">
+            <div class="section-header">
+                <span class="section-tag">Our Menu</span>
+                <h2 class="section-title">Signature Dishes</h2>
+                <p class="section-desc">Tap any dish to view in augmented reality</p>
             </div>
             <div class="menu-grid" id="menuGrid">
-                <div class="loading">Loading menu...</div>
+                <!-- Dishes injected by JS -->
+            </div>
+        </section>
+
+        <!-- Dish Detail -->
+        <div class="detail-view" id="detailView">
+            <div class="detail-backdrop" id="detailBackdrop"></div>
+            <div class="detail-panel">
+                <button class="detail-close" id="detailClose">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+                <div class="detail-image-wrap">
+                    <img class="detail-image" id="detailImage" src="" alt="">
+                    <div class="detail-badge" id="detailBadge">AR Ready</div>
+                </div>
+                <div class="detail-body">
+                    <span class="detail-category" id="detailCategory"></span>
+                    <h2 class="detail-name" id="detailName"></h2>
+                    <p class="detail-desc" id="detailDesc"></p>
+                    <div class="detail-meta">
+                        <div class="detail-price" id="detailPrice"></div>
+                        <div class="detail-rating">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#c9a96e"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            <span>4.8</span>
+                        </div>
+                    </div>
+                    <div class="detail-quantity">
+                        <label>Quantity</label>
+                        <div class="qty-control">
+                            <button class="qty-btn" id="qtyMinus">-</button>
+                            <span class="qty-value" id="qtyValue">1</span>
+                            <button class="qty-btn" id="qtyPlus">+</button>
+                        </div>
+                    </div>
+                    <div class="detail-actions">
+                        <button class="btn-ar" id="viewARBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 1h6v6H1z"/><path d="M17 1h6v6h-6z"/><path d="M1 17h6v6H1z"/>
+                                <circle cx="20" cy="20" r="3"/><path d="M14 21h-4"/>
+                            </svg>
+                            <span>View in AR</span>
+                        </button>
+                        <button class="btn-add" id="addCartBtn">
+                            <span>Add to Order</span>
+                            <span class="btn-price" id="btnPrice"></span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Dish Detail View -->
-        <div class="dish-detail">
-            <div class="detail-back" id="detailBack">←</div>
-            <img class="detail-image" id="detailImage" src="" alt="">
-            <h2 class="detail-name" id="detailName"></h2>
-            <p class="detail-description" id="detailDescription"></p>
-            <div class="detail-price" id="detailPrice"></div>
-            
-            <label class="quantity-label">Quantity</label>
-            <div class="quantity-display" id="quantityDisplay">1</div>
-            <input type="range" class="quantity-slider" id="quantitySlider" min="1" max="10" value="1">
-            
-            <button class="ar-button" id="viewARButton">View in AR</button>
+        <!-- Cart Drawer -->
+        <div class="cart-drawer" id="cartDrawer">
+            <div class="cart-backdrop" id="cartBackdrop"></div>
+            <div class="cart-panel">
+                <div class="cart-header">
+                    <h3>Your Order</h3>
+                    <button class="cart-close" id="cartClose">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="cart-items" id="cartItems">
+                    <div class="cart-empty" id="cartEmpty">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+                            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                            <line x1="3" y1="6" x2="21" y2="6"/>
+                            <path d="M16 10a4 4 0 01-8 0"/>
+                        </svg>
+                        <p>Your order is empty</p>
+                    </div>
+                </div>
+                <div class="cart-footer" id="cartFooter" style="display:none;">
+                    <div class="cart-total">
+                        <span>Total</span>
+                        <span class="total-amount" id="totalAmount">रु 0</span>
+                    </div>
+                    <button class="btn-checkout" id="checkoutBtn">
+                        <span>Place Order</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Confirmation -->
+        <div class="order-confirm" id="orderConfirm">
+            <div class="confirm-card">
+                <div class="confirm-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#c9a96e" stroke-width="1.5">
+                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <h3>Order Confirmed</h3>
+                <p>Your order has been placed successfully. It will be ready shortly.</p>
+                <button class="btn-checkout" id="confirmOk">Continue Browsing</button>
+            </div>
         </div>
     </div>
 
     <!-- AR View -->
     <div class="ar-view" id="arView">
         <canvas class="ar-canvas" id="arCanvas"></canvas>
-
-        <!-- Fallback camera feed (for non-WebXR browsers) -->
         <video id="arCameraFeed" class="ar-camera-feed" autoplay playsinline muted></video>
-
         <div class="ar-overlay" id="arOverlay">
-            <div class="ar-info">
-                <div id="arDishName">-</div>
-                <div id="arQuantity">-</div>
+            <div class="ar-top-bar">
+                <div class="ar-dish-info">
+                    <div class="ar-dish-name" id="arDishName">-</div>
+                    <div class="ar-dish-qty" id="arQuantity">-</div>
+                </div>
+                <button class="ar-close-btn" id="closeARButton">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
             </div>
-            <div class="ar-instructions" id="arInstructions">Point camera at a flat surface</div>
-            <button class="ar-place-btn" id="arPlaceBtn" style="display:none;">Tap to Place</button>
-            <button class="ar-close" id="closeARButton">✕</button>
+            <div class="ar-bottom">
+                <div class="ar-instruction" id="arInstructions">Point camera at a flat surface</div>
+                <button class="ar-place-btn" id="arPlaceBtn" style="display:none;">
+                    <span>Tap to Place</span>
+                </button>
+            </div>
         </div>
     </div>
 
